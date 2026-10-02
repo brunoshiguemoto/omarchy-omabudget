@@ -9,6 +9,35 @@ as its own window.
 
 ![preview](preview.png)
 
+## Install
+
+    omarchy plugin add https://github.com/karamble/omarchy-omabudget
+    omarchy plugin enable karamble.omabudget right
+    omarchy-restart-shell
+
+Only source is shipped, so the helpers are compiled once on your machine. The
+app offers a **Build now** button, or from the plugin directory:
+
+    cd ~/.config/omarchy/plugins/karamble.omabudget
+    make
+
+Requires the Go toolchain, 1.25 or newer. The first build fetches the SQLite
+driver, about 40 MB of Go source, so it takes a minute; later builds are cached.
+
+### What the build guarantees
+
+`make` runs in your shell, with your PATH, because that is what building from
+source means. Within that, the build is pinned rather than open-ended:
+
+- `GOTOOLCHAIN=local` means the go command uses the toolchain you installed. It
+  will not silently fetch a different one over the network.
+- `CGO_ENABLED=0` means no C compiler is involved and the binary does not vary
+  with whether one is present. The SQLite driver is pure Go.
+- `-mod=readonly` refuses to edit `go.mod` or `go.sum` mid-build, and
+  `make verify` runs `go mod verify` before anything compiles.
+- `-trimpath -buildvcs=false` keep local paths and the git revision out, so two
+  builds of the same commit are byte-identical.
+
 ## What it does
 
 - **Accounts**: checking, savings, cash, credit cards, loans, investments and
@@ -147,35 +176,6 @@ the plugin's `bin/` folder:
 
 `omabudget help` lists every verb; `-json` on any of them prints what the
 daemon answered, verbatim.
-
-## Install
-
-    omarchy plugin add https://github.com/karamble/omarchy-omabudget
-    omarchy plugin enable karamble.omabudget right
-    omarchy-restart-shell
-
-Only source is shipped, so the helpers are compiled once on your machine. The
-app offers a **Build now** button, or from the plugin directory:
-
-    cd ~/.config/omarchy/plugins/karamble.omabudget
-    make
-
-Requires the Go toolchain, 1.25 or newer. The first build fetches the SQLite
-driver, about 40 MB of Go source, so it takes a minute; later builds are cached.
-
-### What the build guarantees
-
-`make` runs in your shell, with your PATH, because that is what building from
-source means. Within that, the build is pinned rather than open-ended:
-
-- `GOTOOLCHAIN=local` means the go command uses the toolchain you installed. It
-  will not silently fetch a different one over the network.
-- `CGO_ENABLED=0` means no C compiler is involved and the binary does not vary
-  with whether one is present. The SQLite driver is pure Go.
-- `-mod=readonly` refuses to edit `go.mod` or `go.sum` mid-build, and
-  `make verify` runs `go mod verify` before anything compiles.
-- `-trimpath -buildvcs=false` keep local paths and the git revision out, so two
-  builds of the same commit are byte-identical.
 
 ## The window
 

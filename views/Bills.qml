@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../i18n"
 
 // Bills: what is due on the left, the rules behind them on the right. Tab
 // moves between the two; Enter posts or edits, s skips, a adds, x removes.
@@ -102,7 +103,7 @@ Item {
   function removeRule(rule) {
     if (!rule) return
     confirm.rule = rule
-    confirm.message = "Remove " + rule.name + "? What it already posted stays."
+    confirm.message = I18n.tf("bills.confirmRemove", [rule.name])
     confirm.opened = true
   }
   function togglePause(rule) {
@@ -201,14 +202,14 @@ Item {
       spacing: Style.space(12)
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Bills"
+        text: I18n.t("bills.Bills")
         color: view.fg
         font.family: view.ff
         font.pixelSize: Style.font.heading
       }
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: view.due.length + " due in sixty days   " + view.rules.length + " rules"
+        text: I18n.tf("bills.dueAndRules", [view.due.length, view.rules.length])
         color: view.dimmer
         font.family: view.ff
         font.pixelSize: Style.font.caption
@@ -231,15 +232,15 @@ Item {
           id: dueHead
           width: parent.width
           height: Style.space(30)
-          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "DUE" }
-          Caption { x: Style.space(12) + Style.space(70); anchors.verticalCenter: parent.verticalCenter; text: "BILL" }
-          Caption { anchors.right: parent.right; anchors.rightMargin: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "AMOUNT" }
+          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("bills.Due") }
+          Caption { x: Style.space(12) + Style.space(70); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("bills.Bill") }
+          Caption { anchors.right: parent.right; anchors.rightMargin: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("bills.Amount") }
           Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
         }
         Text {
           anchors.centerIn: parent
           visible: view.due.length === 0
-          text: "Nothing due in the next sixty days. Press a to add a bill."
+          text: I18n.t("bills.NothingDueInTheNext")
           color: view.dim
           font.family: view.ff
           font.pixelSize: Style.font.body
@@ -308,8 +309,8 @@ Item {
               Text {
                 width: parent.width
                 text: view.state(dueRow.modelData)
-                      + (dueRow.modelData.autoPost ? "  ·  posts itself" : "")
-                      + (dueRow.modelData.variableAmount ? "  ·  amount varies" : "")
+                      + (dueRow.modelData.autoPost ? "  ·  " + I18n.t("bills.postsItself") : "")
+                      + (dueRow.modelData.variableAmount ? "  ·  " + I18n.t("bills.amountVaries") : "")
                       + "  ·  " + (dueRow.modelData.kind === "transfer" ? "transfer" : dueRow.modelData.categoryName)
                       + "  ·  " + dueRow.modelData.accountName
                 color: dueRow.modelData.overdue ? (view.app ? view.app.expense : view.dimmer) : view.dimmer
@@ -353,14 +354,14 @@ Item {
           id: rulesHead
           width: parent.width
           height: Style.space(30)
-          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "RULES" }
-          Caption { anchors.right: parent.right; anchors.rightMargin: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "NEXT" }
+          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("bills.Rules") }
+          Caption { anchors.right: parent.right; anchors.rightMargin: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("bills.Next") }
           Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
         }
         Text {
           anchors.centerIn: parent
           visible: view.rules.length === 0
-          text: "No rules yet. Press a."
+          text: I18n.t("bills.NoRulesYetPressA")
           color: view.dim
           font.family: view.ff
           font.pixelSize: Style.font.body
@@ -409,9 +410,9 @@ Item {
                 width: parent.width
                 text: view.money(ruleRow.tpl.amount || 0, ruleRow.tpl.currency)
                       + "  ·  " + ruleRow.modelData.frequency
-                      + (ruleRow.modelData.dayRule === "last" ? ", last day" : "")
-                      + (ruleRow.modelData.autoPost ? "  ·  auto" : "")
-                      + "  ·  posted " + (ruleRow.modelData.posted || 0)
+                      + (ruleRow.modelData.dayRule === "last" ? ", " + I18n.t("bills.lastDay") : "")
+                      + (ruleRow.modelData.autoPost ? "  ·  " + I18n.t("bills.auto") : "")
+                      + "  ·  " + I18n.tf("bills.postedN", [ruleRow.modelData.posted || 0])
                 color: view.dimmer
                 font.family: view.ff
                 font.pixelSize: Style.font.caption
@@ -447,8 +448,8 @@ Item {
       id: footer
       width: parent.width
       text: view.pane === "due"
-        ? "j k move   Enter post   s skip   e edit   a new   x remove   Tab rules"
-        : "j k move   Enter edit   p pause or resume   a new   x remove   Tab due"
+        ? I18n.t("bills.footDue")
+        : I18n.t("bills.footRules")
       color: view.dimmer
       font.family: view.ff
       font.pixelSize: Style.font.caption
@@ -479,7 +480,7 @@ Item {
       anchors.margins: Style.space(16)
       spacing: Style.space(10)
       Text {
-        text: poster.bill ? "Post " + poster.bill.name : ""
+        text: poster.bill ? I18n.tf("bills.postName", [poster.bill.name]) : ""
         color: view.fg
         font.family: view.ff
         font.pixelSize: Style.font.title
@@ -490,7 +491,7 @@ Item {
         Column {
           width: (parent.width - parent.spacing) * 0.5
           spacing: Style.space(4)
-          Caption { text: "PAID ON" }
+          Caption { text: I18n.t("bills.PaidOn") }
           TextField {
             id: postDate
             width: parent.width
@@ -498,7 +499,7 @@ Item {
             accent: view.accent
             font.family: view.ff
             font.pixelSize: Style.font.body
-            placeholderText: "YYYY-MM-DD"
+            placeholderText: I18n.t("bills.YyyyMmDd")
             KeyNavigation.tab: postAmount
             Keys.onReturnPressed: view.submitPost()
             Keys.onEnterPressed: view.submitPost()
@@ -508,7 +509,7 @@ Item {
         Column {
           width: (parent.width - parent.spacing) * 0.5
           spacing: Style.space(4)
-          Caption { text: "AMOUNT" }
+          Caption { text: I18n.t("bills.Amount") }
           TextField {
             id: postAmount
             width: parent.width
@@ -526,7 +527,7 @@ Item {
       Row {
         spacing: Style.space(8)
         Button {
-          text: "Post   Enter"
+          text: I18n.tf("bills.Post", ["Enter"])
           foreground: view.fg
           accent: view.accent
           fontFamily: view.ff
@@ -535,7 +536,7 @@ Item {
           onClicked: view.submitPost()
         }
         Button {
-          text: "Cancel   Esc"
+          text: I18n.tf("bills.Cancel", ["Esc"])
           foreground: view.dim
           accent: view.accent
           fontFamily: view.ff
@@ -552,7 +553,7 @@ Item {
     property var rule: null
     anchors.fill: parent
     z: 20
-    confirmText: "Remove"
+    confirmText: I18n.t("payeeform.Remove")
     // Cancel is what Enter lands on. The dialog defaults to preselecting
     // Confirm, which on a destructive prompt means a stray Enter destroys.
     selectedIndex: 0

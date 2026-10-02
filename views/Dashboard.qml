@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "../charts"
+import "../i18n"
 
 // This period at a glance: cash, spending, savings, budgets, cashflow, the
 // latest transactions and the accounts. Everything drawn here comes from
@@ -47,7 +48,18 @@ Item {
     ? savingsRate - (Number(previous.savingsRate) || 0) : 0
 
   readonly property var cashPoints: view.pluck(cash ? cash.series : null, "liquid")
-  readonly property var monthLabels: view.pluck(months, "label")
+  // The daemon sends a three-letter English label, but the key beside it is
+  // the month itself, so the label is derived here and follows the locale.
+  readonly property var monthLabels: {
+    var out = []
+    var ms = view.months || []
+    for (var i = 0; i < ms.length; i++) {
+      var m = parseInt(String(ms[i].key || "").slice(5, 7), 10)
+      var n = view.app && m >= 1 && m <= 12 ? view.app.monthShort(m) : String(ms[i].label || "")
+      out.push(n.charAt(0).toUpperCase() + n.slice(1))
+    }
+    return out
+  }
   readonly property var monthIncome: view.pluck(months, "income")
   readonly property var monthExpense: view.pluck(months, "expense")
   readonly property var monthNet: view.pluck(months, "net")
@@ -87,12 +99,21 @@ Item {
   property var now: new Date()
   Timer { interval: 60000; running: true; repeat: true; onTriggered: view.now = new Date() }
 
-  readonly property var monthNames: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  // Chart axis labels, from the locale. Rebuilt when the language changes
+  // because it reads app.monthShort, which reads the locale.
+  readonly property var monthNames: {
+    var out = []
+    for (var m = 1; m <= 12; m++) {
+      var n = view.app ? view.app.monthShort(m) : String(m)
+      out.push(n.charAt(0).toUpperCase() + n.slice(1))
+    }
+    return out
+  }
 
   function money(minor, currency) { return app ? app.fmt(minor, currency) : String(minor) }
   // A gain carries its plus sign; hidden amounts carry nothing.
   function signed(minor, currency) { return (!view.hidden && Number(minor) >= 0 ? "+" : "") + money(minor, currency) }
-  function signedPct(n, digits) { return (n >= 0 ? "+" : "") + Number(n).toFixed(digits) + "%" }
+  function signedPct(n, digits) { return app ? app.signedPct(n, digits) : String(n) + "%" }
 
   // One field out of every row, in order.
   function pluck(rows, field) {
@@ -224,7 +245,7 @@ Item {
   component ViewAll: Item {
     id: link
     property string target: ""
-    property string label: "View all"
+    property string label: I18n.t("dash.ViewAll")
     width: linkRow.implicitWidth
     height: linkRow.implicitHeight
     Row {
@@ -285,7 +306,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           spacing: Style.space(4)
           Text {
-            text: "Dashboard"
+            text: I18n.t("dash.Dashboard")
             color: view.fg
             font.family: view.ff
             font.pixelSize: Style.font.heading
@@ -294,7 +315,7 @@ Item {
             visible: !!view.snap && !!view.snap.period
             text: view.snap && view.snap.period
               ? view.snap.period.from + " to " + view.snap.period.to
-                + "  ·  day " + view.snap.period.elapsed + " of " + view.snap.period.days
+                + "  ·  " + I18n.tf("dash.dayOf", [view.snap.period.elapsed, view.snap.period.days])
               : ""
             color: view.dimmer
           }
@@ -326,9 +347,9 @@ Item {
                     radius: width / 2
                     color: view.accent
                   }
-                  Note { text: "All data stored locally"; color: view.fg }
+                  Note { text: I18n.t("dash.AllDataStoredLocally"); color: view.fg }
                 }
-                Note { text: "No cloud. No tracking. Just you."; color: view.dimmer }
+                Note { text: I18n.t("dash.NoCloudNoTrackingJust"); color: view.dimmer }
               }
               Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -374,7 +395,7 @@ Item {
           width: tiles.tileWidth
           height: tiles.tileHeight
 
-          Caption { id: cashLabel; text: "TOTAL CASH ON HAND" }
+          Caption { id: cashLabel; text: I18n.t("dash.TotalCashOnHand") }
           RollingFigure {
             anchors.top: cashLabel.bottom
             anchors.topMargin: Style.space(4)
@@ -418,7 +439,7 @@ Item {
             }
             Note {
               id: deltaWord
-              text: "this period"
+              text: I18n.t("dash.ThisPeriod")
               visible: deltaRow.figuresWidth + deltaRow.spacing + deltaWord.implicitWidth <= deltaRow.width
             }
           }
@@ -431,7 +452,7 @@ Item {
 
           Caption {
             id: spendLabel
-            text: "SPENDING" + (view.periodLabel !== "" ? " (" + view.periodLabel.toUpperCase() + ")" : "")
+            text: I18n.t("dash.Spending") + (view.periodLabel !== "" ? " (" + view.periodLabel.toUpperCase() + ")" : "")
           }
           RollingFigure {
             anchors.top: spendLabel.bottom
@@ -461,10 +482,10 @@ Item {
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               text: view.envelope
-                ? "to be budgeted " + view.money(view.toBeBudgeted, view.cur)
+                ? I18n.tf("budget.toBeBudgeted", [view.money(view.toBeBudgeted, view.cur)])
                 : view.planned > 0
-                  ? view.spendPct + "% of " + view.money(view.planned, view.cur) + " budget"
-                  : "of " + view.money(view.earned, view.cur) + " income"
+                  ? I18n.tf("dash.pctOfBudget", [view.spendPct, view.money(view.planned, view.cur)])
+                  : I18n.tf("dash.ofIncome", [view.money(view.earned, view.cur)])
               color: view.envelope && view.toBeBudgeted < 0 ? view.expense : view.dimmer
             }
           }
@@ -475,7 +496,7 @@ Item {
           width: tiles.tileWidth
           height: tiles.tileHeight
 
-          Caption { id: savingsLabel; text: "SAVINGS RATE" }
+          Caption { id: savingsLabel; text: I18n.t("dash.SavingsRate") }
           RollingFigure {
             anchors.top: savingsLabel.bottom
             anchors.topMargin: Style.space(4)
@@ -511,7 +532,7 @@ Item {
             readonly property color tone: view.savingsDiff >= 0 ? view.income : view.expense
             Note { text: view.savingsDiff >= 0 ? "▲" : "▼"; color: savingsRow.tone }
             Note { text: view.signedPct(view.savingsDiff, 0); color: savingsRow.tone }
-            Note { text: "from last period" }
+            Note { text: I18n.t("dash.FromLastPeriod") }
           }
         }
       }
@@ -582,11 +603,11 @@ Item {
             Item {
               width: parent.width
               height: Style.space(20)
-              Heading { anchors.verticalCenter: parent.verticalCenter; text: "BUDGET BY CATEGORY" }
+              Heading { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.BudgetByCategory") }
               ViewAll {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                label: view.budgetLabel !== "" ? view.budgetLabel : "View all"
+                label: view.budgetLabel !== "" ? view.budgetLabel : I18n.t("dash.ViewAll")
                 target: "budget"
               }
             }
@@ -595,7 +616,7 @@ Item {
               visible: view.cards.length === 0
               width: parent.width
               wrapMode: Text.WordWrap
-              text: "No budgets yet. Press 4 to plan one."
+              text: I18n.t("dash.NoBudgetsYetPress4")
               color: view.dim
             }
 
@@ -675,7 +696,7 @@ Item {
 
             Note {
               visible: view.cards.length > 6
-              text: "and " + (view.cards.length - 6) + " more, press 4"
+              text: I18n.tf("dash.moreCards", [view.cards.length - 6])
             }
           }
         }
@@ -691,7 +712,7 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             height: Math.max(Style.space(20), rangeGroup.implicitHeight)
-            Heading { anchors.verticalCenter: parent.verticalCenter; text: "CASHFLOW" }
+            Heading { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.Cashflow") }
             ButtonGroup {
               id: rangeGroup
               anchors.right: parent.right
@@ -717,9 +738,9 @@ Item {
             anchors.bottom: parent.bottom
             labels: view.monthLabels
             series: [
-              { label: "Income", color: view.income, values: view.monthIncome },
-              { label: "Expenses", color: view.expense, values: view.monthExpense },
-              { label: "Net", color: view.net, values: view.monthNet }
+              { label: I18n.t("dash.Income"), color: view.income, values: view.monthIncome },
+              { label: I18n.t("dash.Expenses"), color: view.expense, values: view.monthExpense },
+              { label: I18n.t("dash.Net"), color: view.net, values: view.monthNet }
             ]
             visibleGroups: view.cashflowRange === "3M" ? 3 : view.cashflowRange === "6M" ? 6 : 0
             axisColor: view.dimmer
@@ -731,7 +752,7 @@ Item {
             formatValue: view.tickFormat
             // The legend is drawn here instead, in its own colour.
             showLegend: false
-            emptyText: "Nothing to chart yet. Press n to add a transaction."
+            emptyText: I18n.t("dash.nothingToChart")
 
             // Grown from the zero line on arrival and whenever the range
             // changes, so switching 3M to 1Y reads as a zoom rather than a
@@ -787,9 +808,9 @@ Item {
             spacing: Style.space(8)
             Repeater {
               model: [
-                { label: "Income", tone: view.income },
-                { label: "Expenses", tone: view.expense },
-                { label: "Net", tone: view.net }
+                { label: I18n.t("dash.Income"), tone: view.income },
+                { label: I18n.t("dash.Expenses"), tone: view.expense },
+                { label: I18n.t("dash.Net"), tone: view.net }
               ]
               delegate: Row {
                 id: key
@@ -837,7 +858,7 @@ Item {
             Item {
               width: parent.width
               height: Style.space(20)
-              Heading { anchors.verticalCenter: parent.verticalCenter; text: "RECENT TRANSACTIONS" }
+              Heading { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.RecentTransactions") }
               ViewAll { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; target: "transactions" }
             }
 
@@ -846,20 +867,20 @@ Item {
               height: Style.space(22)
               radius: Style.cornerRadius
               color: Qt.rgba(view.fg.r, view.fg.g, view.fg.b, 0.05)
-              Caption { x: Style.space(6); anchors.verticalCenter: parent.verticalCenter; text: "DATE" }
-              Caption { x: recentCol.dateW + recentCol.iconW; anchors.verticalCenter: parent.verticalCenter; text: "DESCRIPTION" }
-              Caption { x: recentCol.dateW + recentCol.iconW + recentCol.descW; anchors.verticalCenter: parent.verticalCenter; text: "CATEGORY" }
+              Caption { x: Style.space(6); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.Date") }
+              Caption { x: recentCol.dateW + recentCol.iconW; anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.Description") }
+              Caption { x: recentCol.dateW + recentCol.iconW + recentCol.descW; anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.Category") }
               Caption {
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                text: "AMOUNT"
+                text: I18n.t("dash.Amount")
               }
             }
 
             Body {
               visible: view.recent.length === 0
-              text: "Nothing yet. Press n to add one in under ten seconds."
+              text: I18n.t("dash.NothingYetPressNTo")
               color: view.dim
               topPadding: Style.space(4)
             }
@@ -896,7 +917,7 @@ Item {
                   anchors.verticalCenter: parent.verticalCenter
                   elide: Text.ElideRight
                   text: row.modelData.description ? String(row.modelData.description)
-                      : (row.transfer ? "Transfer" : row.category)
+                      : (row.transfer ? I18n.t("tx.Transfer") : row.category)
                 }
                 Body {
                   x: recentCol.dateW + recentCol.iconW + recentCol.descW
@@ -938,14 +959,14 @@ Item {
               Item {
                 width: parent.width
                 height: Style.space(20)
-                Heading { anchors.verticalCenter: parent.verticalCenter; text: "UPCOMING BILLS" }
+                Heading { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.UpcomingBills") }
                 ViewAll { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; target: "bills" }
               }
               Body {
                 visible: view.bills.length === 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "Nothing due in the next thirty days. Press 5 to add one."
+                text: I18n.t("dash.NothingDueInTheNext")
                 color: view.dim
               }
               Repeater {
@@ -994,7 +1015,7 @@ Item {
               }
               Note {
                 visible: view.bills.length > 6
-                text: "and " + (view.bills.length - 6) + " more, press 5"
+                text: I18n.tf("dash.moreBills", [view.bills.length - 6])
                 color: view.dimmer
               }
             }
@@ -1015,14 +1036,14 @@ Item {
               Item {
                 width: parent.width
                 height: Style.space(20)
-                Heading { anchors.verticalCenter: parent.verticalCenter; text: "ACCOUNTS" }
+                Heading { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("dash.Accounts") }
                 ViewAll { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; target: "accounts" }
               }
               Body {
                 visible: view.accounts.length === 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "No accounts yet. Press 2 for Accounts, then a to add one."
+                text: I18n.t("dash.NoAccountsYetPress2")
                 color: view.dim
                 topPadding: Style.space(4)
               }
@@ -1052,8 +1073,8 @@ Item {
                 visible: view.unconverted.length > 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "No rate on file for " + view.unconverted.join(", ")
-                  + ": left out of cash on hand and net worth. Add one under Manage, Rates."
+                text: I18n.t("dash.NoRateOnFileFor") + view.unconverted.join(", ")
+                  + I18n.t("dash.leftOut")
                 color: view.app ? view.app.urgent : view.fg
                 topPadding: Style.space(4)
               }

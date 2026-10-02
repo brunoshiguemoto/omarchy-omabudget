@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../i18n"
 
 // Tidy up a payee: rename it, say what it is usually booked to, give it
 // another name it goes by, fold it into another, or remove it.
@@ -26,11 +27,11 @@ Overlay {
     || mergeBox.popupOpen || saveButton.activeFocus || cancelButton.activeFocus
     || mergeButton.activeFocus || removeButton.activeFocus
 
-  readonly property var categoryOptions: [{ value: "", label: "No usual category" }]
+  readonly property var categoryOptions: [{ value: "", label: I18n.t("payeeform.NoUsualCategory") }]
     .concat((app ? app.byRecentUse(app.categories) : [])
       .filter(function (c) { return !c.system && !c.archived && c.kind === "expense" })
       .map(function (c) { return { value: c.id, label: (c.parentName ? c.parentName + " / " : "") + c.name } }))
-  readonly property var mergeOptions: [{ value: "", label: "Pick a payee" }]
+  readonly property var mergeOptions: [{ value: "", label: I18n.t("payeeform.PickAPayee") }]
     .concat(card.payees
       .filter(function (p) { return !card.editing || p.id !== card.editing.id })
       .map(function (p) { return { value: p.id, label: p.name } }))
@@ -54,17 +55,17 @@ Overlay {
     if (name === "") { nameField.forceActiveFocus(); return }
     var id = String(card.editing.id)
     // Changes queue, so a rename and an alias in one submit are two commands.
-    if (name !== card.editing.name) card.app.run(["payee", "rename", id, name], "renamed to " + name)
+    if (name !== card.editing.name) card.app.run(["payee", "rename", id, name], I18n.tf("payeeform.toast.renamed", [name]))
     if (categoryBox.value !== (card.editing.defaultCategoryId || ""))
       card.app.run(["payee", "category", id, categoryBox.value === "" ? "" : categoryBox.value],
-                   "set what " + name + " is usually booked to")
+                   I18n.tf("payeeform.toast.booked", [name]))
     if (aliasField.text.trim() !== "")
-      card.app.run(["payee", "alias", id, aliasField.text.trim()], name + " also known as " + aliasField.text.trim())
+      card.app.run(["payee", "alias", id, aliasField.text.trim()], I18n.tf("payeeform.toast.alias", [name, aliasField.text.trim()]))
     card.submitted([], "")
   }
 
   function merge() {
-    if (!card.editing || mergeBox.value === "") { card.app.lastError = "pick the payee to fold it into"; return }
+    if (!card.editing || mergeBox.value === "") { card.app.lastError = I18n.t("payeeform.err.pickFold"); return }
     card.submitted(["payee", "merge", String(card.editing.id), String(mergeBox.value)],
                    "folded " + card.editing.name + " into " + mergeBox.currentLabel())
   }
@@ -96,7 +97,7 @@ Overlay {
     spacing: Style.space(10)
 
     Text {
-      text: card.editing ? card.editing.name : "Payee"
+      text: card.editing ? card.editing.name : I18n.t("payeeform.payee")
       color: card.fg
       font.family: card.ff
       font.pixelSize: Style.font.title
@@ -111,7 +112,7 @@ Overlay {
     Column {
       width: parent.width
       spacing: Style.space(4)
-      Label { text: "NAME" }
+      Label { text: I18n.t("payeeform.Name") }
       TextField {
         id: nameField
         width: parent.width
@@ -128,14 +129,14 @@ Overlay {
     Column {
       width: parent.width
       spacing: Style.space(4)
-      Label { text: "USUALLY BOOKED TO" }
+      Label { text: I18n.t("payeeform.UsuallyBookedTo") }
       SearchableDropdown {
         id: categoryBox
         width: parent.width
         showLabel: false
         options: card.categoryOptions
-        placeholderText: "Type to find a category"
-        triggerLabel: value === "" ? "No usual category" : currentLabel()
+        placeholderText: I18n.t("payeeform.TypeToFindACategory")
+        triggerLabel: value === "" ? I18n.t("payeeform.NoUsualCategory") : currentLabel()
         foreground: card.fg
         accent: card.accent
         fontFamily: card.ff
@@ -146,7 +147,7 @@ Overlay {
     Column {
       width: parent.width
       spacing: Style.space(4)
-      Label { text: "ALSO KNOWN AS" }
+      Label { text: I18n.t("payeeform.AlsoKnownAs") }
       Note {
         width: parent.width
         visible: card.aliases.length > 0
@@ -159,18 +160,18 @@ Overlay {
         accent: card.accent
         font.family: card.ff
         font.pixelSize: Style.font.body
-        placeholderText: "Another name it goes by"
+        placeholderText: I18n.t("payeeform.AnotherNameItGoesBy")
         Keys.onReturnPressed: card.submit()
         Keys.onEnterPressed: card.submit()
         Keys.onEscapePressed: card.cancelled()
       }
-      Note { width: parent.width; text: "A statement's spelling lands on this payee once it is an alias." }
+      Note { width: parent.width; text: I18n.t("payeeform.AStatementSSpellingLands") }
     }
 
     Column {
       width: parent.width
       spacing: Style.space(4)
-      Label { text: "OR FOLD IT INTO" }
+      Label { text: I18n.t("payeeform.OrFoldItInto") }
       Row {
         width: parent.width
         spacing: Style.space(8)
@@ -179,8 +180,8 @@ Overlay {
           width: parent.width - Style.space(120) - parent.spacing
           showLabel: false
           options: card.mergeOptions
-          placeholderText: "Type to find a payee"
-          triggerLabel: value === "" ? "Pick a payee" : currentLabel()
+          placeholderText: I18n.t("payeeform.TypeToFindAPayee")
+          triggerLabel: value === "" ? I18n.t("payeeform.PickAPayee") : currentLabel()
           foreground: card.fg
           accent: card.accent
           fontFamily: card.ff
@@ -189,8 +190,8 @@ Overlay {
         Button {
           id: mergeButton
           width: Style.space(120)
-          text: "Fold in"
-          tooltipText: "Moves every transaction and keeps this name as an alias"
+          text: I18n.t("payeeform.FoldIn")
+          tooltipText: I18n.t("payeeform.MovesEveryTransactionAndKeeps")
           foreground: card.fg
           accent: card.accent
           fontFamily: card.ff
@@ -207,7 +208,7 @@ Overlay {
       spacing: Style.space(8)
       Button {
         id: saveButton
-        text: "Save   Enter"
+        text: I18n.tf("payeeform.Save", ["Enter"])
         foreground: card.fg
         accent: card.accent
         fontFamily: card.ff
@@ -219,7 +220,7 @@ Overlay {
       }
       Button {
         id: cancelButton
-        text: "Cancel   Esc"
+        text: I18n.tf("payeeform.Cancel", ["Esc"])
         foreground: card.dim
         accent: card.accent
         fontFamily: card.ff
@@ -232,8 +233,8 @@ Overlay {
       Button {
         id: removeButton
         visible: !!card.editing && card.editing.uses === 0
-        text: "Remove"
-        tooltipText: "Only a payee no transaction names can go"
+        text: I18n.t("payeeform.Remove")
+        tooltipText: I18n.t("payeeform.OnlyAPayeeNoTransaction")
         foreground: card.app ? card.app.expense : card.dim
         accent: card.accent
         fontFamily: card.ff

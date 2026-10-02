@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../i18n"
 
 // Manage: the taxonomy behind every other screen. Payees, tags and rates get
 // their own panes here in time, which is why the pane list exists.
@@ -94,7 +95,7 @@ Item {
 
   // ---- actions
   function openEditor(cat) {
-    if (cat && cat.system) { view.app.lastError = cat.name + " is a system category"; return }
+    if (cat && cat.system) { view.app.lastError = I18n.tf("manage.err.system", [cat.name]); return }
     editor.editing = cat
     editor.parentHint = cat ? String(cat.parentId || cat.id) : ""
     editor.active = true
@@ -106,7 +107,7 @@ Item {
   }
   function toggleArchived(cat) {
     if (!cat) return
-    if (cat.system) { view.app.lastError = cat.name + " is a system category"; return }
+    if (cat.system) { view.app.lastError = I18n.tf("manage.err.system", [cat.name]); return }
     var back = cat.archived === true
     app.run(["category", back ? "restore" : "archive", String(cat.id)],
             (back ? "restored " : "archived ") + cat.name)
@@ -118,13 +119,48 @@ Item {
   // Rates are quoted against the reference, whatever figures are shown in.
   readonly property string base: app ? app.rateReference : ""
 
+  // The list is one line per currency. A rate is read as of a date, so the
+  // older rows are what historical figures convert at and must stay on file;
+  // rateFor opens one currency's dates rather than showing every row at once.
+  property string rateFor: ""
+  property var knownCurrencies: []
+
   function reloadRates() {
     if (!app) return
-    app.query(["rate", "list"], function (data, err) {
+    var argv = view.rateFor === "" ? ["rate", "list"] : ["rate", "list", "-currency", view.rateFor]
+    app.query(argv, function (data, err) {
       if (err) { view.app.lastError = err; return }
       view.rates = Array.isArray(data) ? data : []
+      // Removing the last date for a currency leaves nothing to show, so the
+      // view goes back by itself rather than stranding an empty list.
+      if (view.rateFor !== "" && view.rates.length === 0) { view.closeRate(); return }
       if (view.rateCursor >= view.rates.length) view.rateCursor = Math.max(0, view.rates.length - 1)
     })
+    if (view.knownCurrencies.length === 0) {
+      app.query(["rate", "known"], function (data, err) {
+        if (!err && Array.isArray(data)) view.knownCurrencies = data
+      })
+    }
+  }
+
+  // Open one currency's dates, or go back to the collapsed list.
+  function openRate(r) {
+    if (!r || view.rateFor !== "") return
+    view.rateFor = String(r.currency || "")
+    view.rateCursor = 0
+    view.reloadRates()
+  }
+  function closeRate() {
+    if (view.rateFor === "") return
+    view.rateFor = ""
+    view.rateCursor = 0
+    view.reloadRates()
+  }
+
+  // Whether a fetch can keep a code current, which is what the add form says.
+  function isFetchable(code) {
+    var c = String(code || "").toUpperCase()
+    return c !== "" && view.knownCurrencies.indexOf(c) >= 0
   }
 
   function addRate() {
@@ -140,9 +176,16 @@ Item {
     rateDateField.text = ""
   }
 
+  // Asking first, because an older date is what figures before it convert at,
+  // so dropping one silently restates history. Every other removal in this
+  // view already asks; this one used to go straight through, including from a
+  // stray double click.
   function removeRate(r) {
     if (!r) return
-    app.run(["rate", "remove", String(r.currency), String(r.date)], "removed the " + r.currency + " rate")
+    confirm.cat = null
+    confirm.rate = r
+    confirm.message = I18n.tf("manage.confirmRemoveRate", [r.currency, r.date])
+    confirm.opened = true
   }
 
   // ---- payees, spec 1.5
@@ -213,7 +256,7 @@ Item {
   function askRemove(cat) {
     if (!cat) return
     confirm.cat = cat
-    confirm.message = "Remove " + cat.name + "? Only a category nothing points at can go."
+    confirm.message = I18n.tf("manage.confirmRemoveCat", [cat.name])
     confirm.opened = true
   }
 
@@ -297,6 +340,12 @@ Item {
         return true
       case Qt.Key_A: currencyField.forceActiveFocus(); return true
       case Qt.Key_X: view.removeRate(view.currentRate); return true
+      case Qt.Key_Return: case Qt.Key_Enter:
+        if (view.rateFor === "") view.openRate(view.currentRate)
+        return true
+      case Qt.Key_B: case Qt.Key_Escape:
+        if (view.rateFor !== "") { view.closeRate(); return true }
+        break
       }
       return false
     }
@@ -348,7 +397,7 @@ Item {
       spacing: Style.space(12)
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Manage"
+        text: I18n.t("manage.Manage")
         color: view.fg
         font.family: view.ff
         font.pixelSize: Style.font.heading
@@ -356,7 +405,11 @@ Item {
       ButtonGroup {
         visible: view.panes.length > 1
         anchors.verticalCenter: parent.verticalCenter
-        options: view.panes.map(function (p) { return { value: p, label: p } })
+        options: view.panes.map(function (p) {
+          // The value stays the English identifier the rest of this view
+          // compares against; only what is shown is translated.
+          return { value: p, label: I18n.t("manage.pane." + p.toLowerCase()) }
+        })
         value: view.pane
         foreground: view.fg
         accent: view.accent
@@ -370,9 +423,11 @@ Item {
         text: view.pane === "Payees"
           ? view.payees.length + (view.payees.length === 1 ? " payee" : " payees")
           : view.pane === "Alerts"
-          ? view.armed.length + " armed" + (view.app && view.app.snap && view.app.snap.monitoring === false ? ", evaluation is off" : "")
+          ? I18n.tf("manage.armedN", [view.armed.length]) + (view.app && view.app.snap && view.app.snap.monitoring === false ? I18n.t("manage.evalOff") : "")
           : view.pane === "Rates"
-          ? view.rates.length + " on file, in " + view.base
+          ? (view.rateFor !== ""
+              ? I18n.tf(view.rates.length === 1 ? "manage.dateFor" : "manage.datesFor", [view.rates.length, view.rateFor])
+              : I18n.tf(view.rates.length === 1 ? "manage.rateOnFile1" : "manage.ratesOnFile", [view.rates.length, view.base]))
           : view.all.length + " categories" + (view.archivedCount > 0 ? ", " + view.archivedCount + " archived" : "")
         color: view.dimmer
         font.family: view.ff
@@ -388,7 +443,7 @@ Item {
         id: searchField
         width: Style.space(240)
         anchors.verticalCenter: parent.verticalCenter
-        placeholderText: "Search   /"
+        placeholderText: I18n.tf("manage.Search", ["/"])
         foreground: view.fg
         accent: view.accent
         font.family: view.ff
@@ -399,7 +454,7 @@ Item {
       }
       Button {
         anchors.verticalCenter: parent.verticalCenter
-        text: "New   a"
+        text: I18n.tf("manage.New", ["a"])
         foreground: view.fg
         accent: view.accent
         fontFamily: view.ff
@@ -428,12 +483,12 @@ Item {
         id: head
         width: parent.width
         height: Style.space(30)
-        Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "CATEGORY" }
+        Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Category") }
         Caption {
           anchors.right: parent.right
           anchors.rightMargin: Style.space(12)
           anchors.verticalCenter: parent.verticalCenter
-          text: "POT AND FLAGS"
+          text: I18n.t("manage.PotAndFlags")
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
       }
@@ -441,7 +496,7 @@ Item {
       Text {
         anchors.centerIn: parent
         visible: view.rows.length === 0
-        text: view.all.length === 0 ? "Loading" : "Nothing matches. Press a to add a category."
+        text: view.all.length === 0 ? I18n.t("budget.loading") : I18n.t("manage.nothingMatches")
         color: view.dim
         font.family: view.ff
         font.pixelSize: Style.font.body
@@ -510,22 +565,22 @@ Item {
             }
             Badge {
               visible: row.cat.goalTarget > 0
-              text: "goal " + (view.app ? view.app.fmt(row.cat.goalTarget, view.app.snap ? view.app.snap.baseCurrency : "") : "")
+              text: I18n.t("manage.Goal") + (view.app ? view.app.fmt(row.cat.goalTarget, view.app.snap ? view.app.snap.baseCurrency : "") : "")
                     + (row.cat.goalDue ? " by " + row.cat.goalDue : "")
               color: view.dim
             }
             Badge {
               visible: row.cat.excludedFromStatistics === true
-              text: "not in statistics"
+              text: I18n.t("manage.NotInStatistics")
             }
             Badge {
               visible: row.cat.archived === true
-              text: "archived"
+              text: I18n.t("manage.Archived")
               color: view.app ? view.app.nearLimit : view.dimmer
             }
             Badge {
               visible: row.cat.system === true
-              text: "system"
+              text: I18n.t("manage.System")
             }
           }
           MouseArea {
@@ -555,7 +610,7 @@ Item {
           id: currencyField
           width: Style.space(90)
           anchors.verticalCenter: parent.verticalCenter
-          placeholderText: "USD"
+          placeholderText: I18n.t("manage.Usd")
           maximumLength: 3
           foreground: view.fg
           accent: view.accent
@@ -581,7 +636,7 @@ Item {
           id: rateDateField
           width: Style.space(160)
           anchors.verticalCenter: parent.verticalCenter
-          placeholderText: "YYYY-MM-DD, today if empty"
+          placeholderText: I18n.t("manage.YyyyMmDdTodayIf")
           foreground: view.fg
           accent: view.accent
           font.family: view.ff
@@ -592,7 +647,7 @@ Item {
         }
         Button {
           anchors.verticalCenter: parent.verticalCenter
-          text: "Add   a"
+          text: I18n.tf("manage.Add", ["a"])
           foreground: view.fg
           accent: view.accent
           fontFamily: view.ff
@@ -602,11 +657,40 @@ Item {
         }
         Text {
           anchors.verticalCenter: parent.verticalCenter
-          text: view.base !== "" ? "1 of that currency, in " + view.base : ""
+          text: view.base !== "" ? I18n.tf("manage.oneOfThat", [view.base]) : ""
           color: view.dimmer
           font.family: view.ff
           font.pixelSize: Style.font.caption
         }
+      }
+
+      // What a fetch can keep current. A code not here still works; it just
+      // stays exactly as it was typed, because neither source quotes it.
+      Text {
+        width: parent.width
+        wrapMode: Text.WordWrap
+        visible: view.knownCurrencies.length > 0
+        text: {
+          var typed = currencyField.text.trim().toUpperCase()
+          if (typed.length === 3)
+            return view.isFetchable(typed) ? I18n.tf("manage.fetchKeeps", [typed])
+                                           : I18n.tf("manage.handKept", [typed])
+          return I18n.tf("manage.fetchable", [view.knownCurrencies.join(" ")])
+        }
+        color: view.dimmer
+        font.family: view.ff
+        font.pixelSize: Style.font.caption
+      }
+
+      // Which currency's dates are open, and the way back.
+      Text {
+        width: parent.width
+        visible: view.rateFor !== ""
+        wrapMode: Text.WordWrap
+        text: I18n.tf("manage.everyDateFor", [view.rateFor])
+        color: view.dim
+        font.family: view.ff
+        font.pixelSize: Style.font.caption
       }
 
       Rectangle {
@@ -622,10 +706,10 @@ Item {
           id: rateHead
           width: parent.width
           height: Style.space(30)
-          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "FROM" }
-          Caption { x: Style.space(140); anchors.verticalCenter: parent.verticalCenter; text: "CURRENCY" }
-          Caption { x: Style.space(260); anchors.verticalCenter: parent.verticalCenter; text: "RATE" }
-          Caption { x: Style.space(500); anchors.verticalCenter: parent.verticalCenter; text: "SOURCE" }
+          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.From") }
+          Caption { x: Style.space(140); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Currency") }
+          Caption { x: Style.space(260); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Rate") }
+          Caption { x: Style.space(500); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Source") }
           Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
         }
         Text {
@@ -634,7 +718,7 @@ Item {
           width: parent.width - Style.space(40)
           horizontalAlignment: Text.AlignHCenter
           wrapMode: Text.WordWrap
-          text: "No rates yet. An account in another currency needs one to be counted in liquid funds and net worth; without it every entry has to carry its own."
+          text: I18n.t("manage.NoRatesYetAnAccount")
           color: view.dim
           font.family: view.ff
           font.pixelSize: Style.font.body
@@ -685,6 +769,15 @@ Item {
               font.pixelSize: Style.font.body
             }
             Text {
+              x: Style.space(620)
+              anchors.verticalCenter: parent.verticalCenter
+              visible: view.rateFor === "" && Number(rateRow.modelData.onFile || 1) > 1
+              text: I18n.tf("manage.onFile", [Number(rateRow.modelData.onFile || 1)])
+              color: view.dimmer
+              font.family: view.ff
+              font.pixelSize: Style.font.caption
+            }
+            Text {
               x: Style.space(500)
               anchors.verticalCenter: parent.verticalCenter
               text: rateRow.modelData.source === "manual" ? "typed" : rateRow.modelData.source === "seed" ? "shipped" : String(rateRow.modelData.source || "")
@@ -700,7 +793,11 @@ Item {
               onEntered: view.pointFrom("Rates", rateRow.index, rateRow, { x: rateRowMouse.mouseX, y: rateRowMouse.mouseY })
               onPositionChanged: function (mouse) { view.pointFrom("Rates", rateRow.index, rateRow, mouse) }
               onClicked: view.rateCursor = rateRow.index
-              onDoubleClicked: { view.rateCursor = rateRow.index; view.removeRate(rateRow.modelData) }
+              onDoubleClicked: {
+                view.rateCursor = rateRow.index
+                if (view.rateFor === "") view.openRate(rateRow.modelData)
+                else view.removeRate(rateRow.modelData)
+              }
             }
           }
         }
@@ -722,12 +819,12 @@ Item {
         id: payeeHead
         width: parent.width
         height: Style.space(30)
-        Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "PAYEE" }
+        Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Payee") }
         Caption {
           anchors.right: parent.right
           anchors.rightMargin: Style.space(12)
           anchors.verticalCenter: parent.verticalCenter
-          text: "ON"
+          text: I18n.t("manage.On")
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
       }
@@ -737,7 +834,7 @@ Item {
         width: parent.width - Style.space(40)
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
-        text: "No payees yet. Name one on a transaction and it appears here, where it can be renamed, given the spellings a statement uses, or folded into another."
+        text: I18n.t("manage.NoPayeesYetNameOne")
         color: view.dim
         font.family: view.ff
         font.pixelSize: Style.font.body
@@ -826,7 +923,7 @@ Item {
         width: parent.width
         spacing: Style.space(10)
         Button {
-          text: "Arm a watch   a"
+          text: I18n.tf("manage.ArmAWatch", ["a"])
           foreground: view.fg
           accent: view.accent
           fontFamily: view.ff
@@ -836,7 +933,7 @@ Item {
         }
         Text {
           anchors.verticalCenter: parent.verticalCenter
-          text: "Alarms go to the desktop. Evaluation is switched on in Settings."
+          text: I18n.t("manage.AlarmsGoToTheDesktop")
           color: view.dimmer
           font.family: view.ff
           font.pixelSize: Style.font.caption
@@ -856,12 +953,12 @@ Item {
           id: alertHead
           width: parent.width
           height: Style.space(30)
-          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "WATCHING" }
+          Caption { x: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: I18n.t("manage.Watching") }
           Caption {
             anchors.right: parent.right
             anchors.rightMargin: Style.space(12)
             anchors.verticalCenter: parent.verticalCenter
-            text: "STATE"
+            text: I18n.t("manage.State")
           }
           Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: view.border }
         }
@@ -871,7 +968,7 @@ Item {
           width: parent.width - Style.space(40)
           horizontalAlignment: Text.AlignHCenter
           wrapMode: Text.WordWrap
-          text: "Nothing armed. Press a to watch a budget line going over, a bill slipping past its date, a large posting, or an account running low."
+          text: I18n.t("manage.NothingArmedPressATo")
           color: view.dim
           font.family: view.ff
           font.pixelSize: Style.font.body
@@ -909,7 +1006,7 @@ Item {
               Text {
                 width: parent.width
                 text: alertRow.modelData.path + "  " + alertRow.modelData.operator
-                      + (alertRow.modelData.standing ? "  ·  every time" : "")
+                      + (alertRow.modelData.standing ? "  ·  " + I18n.t("manage.everyTime") : "")
                 color: view.fg
                 font.family: view.ff
                 font.pixelSize: Style.font.body
@@ -919,8 +1016,8 @@ Item {
                 width: parent.width
                 text: (alertRow.modelData.reason ? alertRow.modelData.reason + "  ·  " : "")
                       + "to " + alertRow.modelData.deliverTo
-                      + "  ·  until " + String(alertRow.modelData.expiresAt || "").slice(0, 10)
-                      + "  ·  by " + alertRow.modelData.armedBy
+                      + "  ·  " + I18n.tf("manage.until", [String(alertRow.modelData.expiresAt || "").slice(0, 10)])
+                      + "  ·  " + I18n.tf("manage.by", [alertRow.modelData.armedBy])
                 color: view.dimmer
                 font.family: view.ff
                 font.pixelSize: Style.font.caption
@@ -958,12 +1055,12 @@ Item {
       id: footer
       width: parent.width
       text: view.pane === "Payees"
-        ? "j k move   Enter rename, alias, fold in or remove   Tab rates"
+        ? I18n.t("manage.footPayees")
         : view.pane === "Alerts"
-        ? "j k move   a arm   Enter change   x disarm   Tab categories"
+        ? I18n.t("manage.footAlerts")
         : view.pane === "Rates"
-        ? "j k move   a add   x remove   Tab categories   a rate is what you put in, or what Fetch now in Settings filed"
-        : "j k move   Enter edit   a new   x archive or restore   / search   Tab payees"
+        ? (view.rateFor !== "" ? I18n.t("manage.footRatesOpen") : I18n.t("manage.footRates"))
+        : I18n.t("manage.footCats")
       color: view.dimmer
       font.family: view.ff
       font.pixelSize: Style.font.caption
@@ -974,21 +1071,27 @@ Item {
   ConfirmDialog {
     id: confirm
     property var cat: null
+    property var rate: null
     anchors.fill: parent
     z: 20
-    confirmText: "Remove"
+    confirmText: I18n.t("payeeform.Remove")
     // Cancel is what Enter lands on. The dialog defaults to preselecting
     // Confirm, which on a destructive prompt means a stray Enter destroys.
     selectedIndex: 0
     selectedText: view.app ? view.app.urgent : Color.urgent
     fontFamily: view.ff
     onConfirmed: {
-      if (confirm.cat) view.app.run(["category", "remove", String(confirm.cat.id)], "removed " + confirm.cat.name)
+      if (confirm.cat)
+        view.app.run(["category", "remove", String(confirm.cat.id)], I18n.tf("manage.toast.removedCat", [confirm.cat.name]))
+      else if (confirm.rate)
+        view.app.run(["rate", "remove", String(confirm.rate.currency), String(confirm.rate.date)],
+                     I18n.tf("manage.toast.removedRate", [confirm.rate.currency]))
       confirm.opened = false
       confirm.cat = null
+      confirm.rate = null
       view.closeEditor()
     }
-    onCanceled: { confirm.opened = false; confirm.cat = null; view.forceActiveFocus() }
+    onCanceled: { confirm.opened = false; confirm.cat = null; confirm.rate = null; view.forceActiveFocus() }
   }
 
   Loader {

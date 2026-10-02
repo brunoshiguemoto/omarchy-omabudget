@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "../i18n"
 import "../components"
 
 // Accounts: the list with balances on the left, the chosen account and its
@@ -45,15 +46,15 @@ Item {
 
   function typeLabel(type) {
     switch (String(type)) {
-    case "checking": return "Checking"
-    case "savings": return "Savings"
-    case "cash": return "Cash"
-    case "credit_card": return "Credit card"
-    case "loan": return "Loan"
-    case "investment": return "Investment"
-    case "prepaid": return "Prepaid"
-    case "receivable": return "Receivable"
-    case "payable": return "Payable"
+    case "checking": return I18n.t("acctform.Checking")
+    case "savings": return I18n.t("acctform.Savings")
+    case "cash": return I18n.t("acctform.Cash")
+    case "credit_card": return I18n.t("acctform.CreditCard")
+    case "loan": return I18n.t("acctform.Loan")
+    case "investment": return I18n.t("acctform.Investment")
+    case "prepaid": return I18n.t("acctform.Prepaid")
+    case "receivable": return I18n.t("acctform.Receivable")
+    case "payable": return I18n.t("acctform.Payable")
     }
     return String(type)
   }
@@ -98,7 +99,7 @@ Item {
   function removeCurrent() {
     if (!view.current) return
     confirm.account = view.current
-    confirm.message = "Remove " + view.current.name + "? Only an account nothing points at can go; one with history is closed instead."
+    confirm.message = I18n.tf("accounts.confirmRemove", [view.current.name])
     confirm.opened = true
   }
 
@@ -169,7 +170,7 @@ Item {
       spacing: Style.space(12)
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Accounts"
+        text: I18n.t("accounts.Accounts")
         color: view.fg
         font.family: view.ff
         font.pixelSize: Style.font.heading
@@ -179,7 +180,7 @@ Item {
         visible: !!(view.app && view.app.snap)
         text: view.app && view.app.snap
           ? "liquid " + view.money(view.app.snap.liquid, view.app.snap.baseCurrency)
-            + "   net worth " + view.money(view.app.snap.netWorth, view.app.snap.baseCurrency)
+            + "   " + I18n.tf("accounts.netWorth", [view.money(view.app.snap.netWorth, view.app.snap.baseCurrency)])
             + " " + view.app.snap.baseCurrency
           : ""
         color: view.dimmer
@@ -210,7 +211,7 @@ Item {
 
           Text {
             visible: view.accounts.length === 0
-            text: "No accounts yet. Press a to add one."
+            text: I18n.t("accounts.NoAccountsYetPressA")
             color: view.dim
             font.family: view.ff
             font.pixelSize: Style.font.body
@@ -311,21 +312,21 @@ Item {
                   app: view.app
                   glyph: "󰏫"
                   tint: view.accent
-                  hint: "Edit this account"
+                  hint: I18n.t("accounts.EditThisAccount")
                   onTriggered: { view.cursor = cardItem.index; view.openEditor(cardItem.modelData) }
                 }
                 RowAction {
                   app: view.app
                   glyph: "󰑐"
                   tint: view.accent
-                  hint: "Hold a statement against it"
+                  hint: I18n.t("accounts.HoldAStatementAgainstIt")
                   onTriggered: { view.cursor = cardItem.index; view.openSheet() }
                 }
                 RowAction {
                   app: view.app
                   glyph: "󰩺"
                   tint: view.app ? view.app.expense : view.dim
-                  hint: "Remove, if nothing points at it"
+                  hint: I18n.t("accounts.RemoveIfNothingPointsAt")
                   onTriggered: { view.cursor = cardItem.index; view.removeCurrent() }
                 }
               }
@@ -358,7 +359,7 @@ Item {
         Text {
           anchors.centerIn: parent
           visible: !view.current
-          text: "Pick an account to see it here."
+          text: I18n.t("accounts.PickAnAccountToSee")
           color: view.dim
           font.family: view.ff
           font.pixelSize: Style.font.body
@@ -384,7 +385,7 @@ Item {
               ? view.typeLabel(view.current.type) + "  ·  " + view.current.currency
                 + (view.current.institution ? "  ·  " + view.current.institution : "")
                 + (view.current.last4 ? "  ·  " + view.current.last4 : "")
-                + "  ·  opened " + view.current.openingDate
+                + "  ·  " + I18n.tf("accounts.opened", [view.current.openingDate])
               : ""
             color: view.dimmer
             font.family: view.ff
@@ -403,15 +404,15 @@ Item {
           Text {
             visible: !!(view.current && view.current.lowBalance !== undefined && view.current.lowBalance !== null)
             text: view.current && view.current.lowBalance !== undefined && view.current.lowBalance !== null
-              ? "warns under " + view.money(view.current.lowBalance, view.current.currency)
-                + (view.current.includeInNetWorth === false ? "  ·  outside net worth" : "")
-              : (view.current && view.current.includeInNetWorth === false ? "outside net worth" : "")
+              ? I18n.tf("accounts.warnsUnder", [view.money(view.current.lowBalance, view.current.currency)])
+                + (view.current.includeInNetWorth === false ? "  ·  " + I18n.t("accounts.outsideNetWorth") : "")
+              : (view.current && view.current.includeInNetWorth === false ? I18n.t("accounts.outsideNetWorth") : "")
             color: view.dimmer
             font.family: view.ff
             font.pixelSize: Style.font.caption
           }
 
-          Caption { text: "RECENT"; topPadding: Style.space(12) }
+          Caption { text: I18n.t("accounts.Recent"); topPadding: Style.space(12) }
         }
 
         ListView {
@@ -456,7 +457,7 @@ Item {
               text: postingRow.modelData.description && postingRow.modelData.description !== ""
                 ? postingRow.modelData.description
                 : postingRow.transfer
-                  ? (postingRow.incoming ? "From " + (view.app ? view.app.accountName(postingRow.modelData.accountId) : "")
+                  ? (postingRow.incoming ? I18n.tf("accounts.from", [view.app ? view.app.accountName(postingRow.modelData.accountId) : ""])
                                          : "To " + (view.app ? view.app.accountName(postingRow.modelData.counterAccountId) : ""))
                   : (view.app ? view.app.categoryName(postingRow.modelData.categoryId) : "")
               color: view.fg
@@ -483,7 +484,7 @@ Item {
     Text {
       id: footer
       width: parent.width
-      text: "j k move   Enter edit   a new   x close or reopen   r reconcile   d remove"
+      text: I18n.t("accounts.JKMoveEnterEdit")
       color: view.dimmer
       font.family: view.ff
       font.pixelSize: Style.font.caption
@@ -513,7 +514,7 @@ Item {
     property var account: null
     anchors.fill: parent
     z: 20
-    confirmText: "Remove"
+    confirmText: I18n.t("payeeform.Remove")
     // Cancel is what Enter lands on. The dialog defaults to preselecting
     // Confirm, which on a destructive prompt means a stray Enter destroys.
     selectedIndex: 0

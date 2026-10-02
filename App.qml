@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "i18n"
 
 // The application. The shell loads this Item when the panel is opened and
 // calls open() and close() on it; the window itself is ours.
@@ -78,6 +79,12 @@ Item {
 
   // The dashboard document, re-read after every change and on a timer.
   property var snap: null
+
+  // The interface language follows the stored setting, which rides along on
+  // the dashboard document rather than costing a query of its own. Empty is
+  // English, which is also what an unreadable tag falls back to.
+  onSnapChanged: I18n.language = (root.snap && root.snap.language) ? String(root.snap.language) : "en"
+
   property string lastError: ""
   property string toast: ""
 
@@ -232,7 +239,7 @@ Item {
   property var queryCallback: null
 
   function query(argv, cb) {
-    if (!root.running) { if (cb) cb(null, "the daemon is not running"); return }
+    if (!root.running) { if (cb) cb(null, I18n.t("app.daemonNotRunning")); return }
     root.queryQueue.push({ argv: argv, cb: cb })
     root.pumpQueries()
   }
@@ -267,9 +274,9 @@ Item {
       var data = null
       var err = ""
       if (code === 0) {
-        try { data = JSON.parse(queryProc.out) } catch (e) { err = "unreadable answer from the helper" }
+        try { data = JSON.parse(queryProc.out) } catch (e) { err = I18n.t("app.unreadableAnswer") }
       } else {
-        err = queryProc.errText.replace(/^omabudget: /, "").split("\n")[0] || ("the helper exited with " + code)
+        err = queryProc.errText.replace(/^omabudget: /, "").split("\n")[0] || I18n.tf("app.helperExited", [code])
       }
       if (cb) cb(data, err)
       Qt.callLater(root.pumpQueries)
@@ -287,7 +294,7 @@ Item {
         var raw = String(text || "").trim()
         if (raw === "") return
         try { root.snap = JSON.parse(raw); root.lastError = "" }
-        catch (e) { root.lastError = "could not read the dashboard" }
+        catch (e) { root.lastError = I18n.t("app.err.dashboard") }
       }
     }
     stderr: StdioCollector {
@@ -361,7 +368,7 @@ Item {
       if (mutateProc.running) {
         mutateProc.running = false
         root.mutateQueue = []
-        root.lastError = "the helper did not answer"
+        root.lastError = I18n.t("app.err.noAnswer")
       }
     }
   }
@@ -394,21 +401,47 @@ Item {
     while (s.length <= d) s = "0" + s
     var whole = d > 0 ? s.slice(0, s.length - d) : s
     var frac = d > 0 ? s.slice(s.length - d) : ""
-    whole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-    return (neg ? "-" : "") + whole + (d > 0 ? "." + frac : "")
+    // The separators come from the locale, the arithmetic does not. Money is
+    // sliced out of integer minor units on purpose, so this must not become
+    // toLocaleString(), which takes a double and would round.
+    var loc = I18n.locale
+    whole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, loc.groupSeparator)
+    return (neg ? "-" : "") + whole + (d > 0 ? loc.decimalPoint + frac : "")
+  }
+
+  // A percentage carries a decimal mark like any other figure, so it follows
+  // the locale too. toFixed always writes a dot, hence the swap.
+  function pct(n, digits) {
+    var d = digits === undefined || digits === null ? 0 : digits
+    return Number(n).toFixed(d).replace(".", I18n.locale.decimalPoint) + "%"
+  }
+
+  function signedPct(n, digits) {
+    return (Number(n) >= 0 ? "+" : "") + root.pct(n, digits)
+  }
+
+  // The short month name, from the locale rather than a table of English.
+  // standaloneMonthName is zero based, and some locales abbreviate with a
+  // trailing stop ("out."), which the captions here do not want.
+  function monthShort(m) {
+    var n = Number(m)
+    if (!(n >= 1 && n <= 12)) return String(m)
+    return String(I18n.locale.standaloneMonthName(n - 1, Locale.ShortFormat)).replace(/\.$/, "")
   }
 
   // ---- navigation
+  // The id is what the rest of the app compares and what names the view file;
+  // only the label is shown, so only the label is translated.
   readonly property var views: [
-    { id: "dashboard", label: "Dashboard", key: "1", glyph: "󰕮" },
-    { id: "accounts", label: "Accounts", key: "2", glyph: "󰆦" },
-    { id: "transactions", label: "Transactions", key: "3", glyph: "󰈙" },
-    { id: "budget", label: "Budget", key: "4", glyph: "󰄬" },
-    { id: "bills", label: "Bills", key: "5", glyph: "󰃭" },
-    { id: "reports", label: "Reports", key: "6", glyph: "󰕮" },
-    { id: "manage", label: "Manage", key: "7", glyph: "󰅌" },
-    { id: "settings", label: "Settings", key: "8", glyph: "󰒓" },
-    { id: "privacy", label: "Data & Privacy", key: "9", glyph: "󰌾" }
+    { id: "dashboard", label: I18n.t("nav.dashboard"), key: "1", glyph: "󰕮" },
+    { id: "accounts", label: I18n.t("nav.accounts"), key: "2", glyph: "󰆦" },
+    { id: "transactions", label: I18n.t("nav.transactions"), key: "3", glyph: "󰈙" },
+    { id: "budget", label: I18n.t("nav.budget"), key: "4", glyph: "󰄬" },
+    { id: "bills", label: I18n.t("nav.bills"), key: "5", glyph: "󰃭" },
+    { id: "reports", label: I18n.t("nav.reports"), key: "6", glyph: "󰕮" },
+    { id: "manage", label: I18n.t("nav.manage"), key: "7", glyph: "󰅌" },
+    { id: "settings", label: I18n.t("nav.settings"), key: "8", glyph: "󰒓" },
+    { id: "privacy", label: I18n.t("nav.privacy"), key: "9", glyph: "󰌾" }
   ]
   property string view: "dashboard"
   property int navCursor: 0
@@ -619,8 +652,8 @@ Item {
 
             Button {
               width: parent.width
-              text: "Quick add   n"
-              tooltipText: "Log an expense in a few keystrokes"
+              text: I18n.tf("app.quickAdd", ["n"])
+              tooltipText: I18n.t("app.quickAdd.tip")
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
@@ -631,13 +664,13 @@ Item {
             }
             Text {
               topPadding: Style.space(8)
-              text: "Local. Private. Yours."
+              text: I18n.t("app.tagline")
               color: root.dimmer
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
             }
             Text {
-              text: root.blurAmounts ? "amounts hidden  h" : "hide amounts  h"
+              text: root.blurAmounts ? I18n.tf("app.amountsHidden", ["h"]) : I18n.tf("app.hideAmounts", ["h"])
               color: root.dimmer
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -659,7 +692,7 @@ Item {
             width: Math.min(parent.width - Style.space(48), Style.space(520))
 
             Text {
-              text: root.built ? "The daemon is not running" : "Not built yet"
+              text: root.built ? I18n.t("app.daemonNotRunningCap") : I18n.t("app.notBuiltYet")
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
@@ -668,18 +701,18 @@ Item {
               width: parent.width
               wrapMode: Text.WordWrap
               text: root.built
-                ? (root.service && root.service.lastError ? root.service.lastError : "It should start on its own within a few seconds.")
+                ? (root.service && root.service.lastError ? root.service.lastError : I18n.t("app.shouldStart"))
                 : root.buildable
-                  ? "OMABUDGET ships source only. Build it once and the daemon starts on its own."
-                  : "There is no Makefile here, so this copy has the screens but not the source to build. Reinstall it with: omarchy plugin add https://github.com/karamble/omarchy-omabudget"
+                  ? I18n.t("app.shipsSource")
+                  : I18n.tf("app.noMakefileHere", ["omarchy plugin add https://github.com/karamble/omarchy-omabudget"])
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
             }
             Button {
               visible: !root.built && root.buildable
-              text: "Build now"
-              tooltipText: "Runs make in the plugin directory, in a terminal"
+              text: I18n.t("app.build")
+              tooltipText: I18n.t("app.build.tip")
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
@@ -730,7 +763,7 @@ Item {
                 width: parent.width - Style.space(110) - parent.spacing
                 anchors.verticalCenter: parent.verticalCenter
                 wrapMode: Text.WordWrap
-                text: "The helper is older than the source. Rebuild it, or the daemon keeps running the previous version."
+                text: I18n.t("app.stale")
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -738,8 +771,8 @@ Item {
               Button {
                 width: Style.space(110)
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Rebuild"
-                tooltipText: "Runs make in the plugin directory, then restarts the shell"
+                text: I18n.t("app.rebuild")
+                tooltipText: I18n.t("app.rebuild.tip")
                 foreground: root.foreground
                 accent: root.accent
                 fontFamily: root.fontFamily
@@ -882,8 +915,8 @@ Item {
 
   function build(then) {
     if (!root.buildable) {
-      root.lastError = "no Makefile in " + root.pluginDir
-                     + ": reinstall with omarchy plugin add"
+      root.lastError = I18n.tf("app.err.noMakefile", [root.pluginDir])
+                     + I18n.t("app.reinstallWith")
       return
     }
     Quickshell.execDetached([root.launcher,

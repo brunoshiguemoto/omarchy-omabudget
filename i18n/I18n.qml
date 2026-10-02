@@ -26,7 +26,10 @@ QtObject {
   // What a language file may declare about itself, so adding one is data.
   readonly property var available: [
     { tag: "en", name: "English" },
-    { tag: "pt-BR", name: "Português (Brasil)" }
+    { tag: "es", name: "Español" },
+    { tag: "pt-BR", name: "Português (Brasil)" },
+    { tag: "ru", name: "Русский" },
+    { tag: "zh-CN", name: "简体中文" }
   ]
 
   // The active language tag. The app assigns this from the stored setting.

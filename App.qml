@@ -618,6 +618,11 @@ Item {
                   }
                   Text {
                     anchors.verticalCenter: parent.verticalCenter
+                    // Bounded and elided, because a translated label is often
+                    // longer than the English one and would otherwise run
+                    // under the shortcut key anchored to the right.
+                    width: Math.max(0, parent.width - x - Style.space(28))
+                    elide: Text.ElideRight
                     text: modelData.label
                     color: current ? root.foreground : root.dim
                     font.family: root.fontFamily

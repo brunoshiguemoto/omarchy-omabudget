@@ -42,7 +42,7 @@ func readLang(t *testing.T, tag string) langFile {
 }
 
 // languages are the files that must exist. English is the source of truth.
-var languages = []string{"en", "es", "pt-BR", "ru", "zh-CN"}
+var languages = []string{"en", "de", "es", "ja", "pt-BR", "ru", "zh-CN"}
 
 var keyCall = regexp.MustCompile(`I18n\.tf?\(\s*"([^"]+)"`)
 

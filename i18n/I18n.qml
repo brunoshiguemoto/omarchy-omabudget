@@ -25,8 +25,10 @@ QtObject {
 
   // What a language file may declare about itself, so adding one is data.
   readonly property var available: [
+    { tag: "de", name: "Deutsch" },
     { tag: "en", name: "English" },
     { tag: "es", name: "Español" },
+    { tag: "ja", name: "日本語" },
     { tag: "pt-BR", name: "Português (Brasil)" },
     { tag: "ru", name: "Русский" },
     { tag: "zh-CN", name: "简体中文" }
